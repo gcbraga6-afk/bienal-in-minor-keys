@@ -58,7 +58,8 @@ a{color:inherit;text-underline-offset:3px}
 #map{position:absolute;inset:0}
 .map-ctl{position:absolute;top:12px;left:12px;display:flex;flex-wrap:wrap;gap:6px;z-index:2}
 .map-ctl button{font:inherit;font-size:13px;padding:7px 12px;border-radius:var(--r);border:1px solid var(--line);background:color-mix(in srgb,var(--bg) 88%,transparent);color:var(--fg);cursor:pointer;backdrop-filter:blur(6px)}
-.map-ctl button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.map-ctl .sep{width:6px}
+.map-ctl button[aria-pressed="true"],.map-ctl button.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
 .map-leg{position:absolute;bottom:12px;left:12px;z-index:2;display:flex;gap:14px;font-size:12px;color:var(--muted);background:color-mix(in srgb,var(--bg) 88%,transparent);padding:6px 10px;border-radius:var(--r);border:1px solid var(--line)}
 .map-leg i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:-1px}
 .lg-dot{background:var(--accent)}.lg-ring{border:2px solid var(--accent);background:var(--bg)}
@@ -222,8 +223,8 @@ footer p{max-width:70ch;margin:0}
   <p class="sub rv">Dois dias, dois lugares: o Arsenale no dia 7 e os Giardini no dia 8. Cada ponto é uma obra. Passe o mouse para ver o nome e o artista; clique para ir até a ficha dela na lista.</p>
   <div class="mapbox">
     <div id="map" aria-label="Mapa de Veneza com as obras da visita"></div>
-    <div class="map-ctl" id="map-ctl"><button type="button" data-go="all" class="on">Arsenale e Giardini</button><button type="button" data-go="ars">Arsenale</button><button type="button" data-go="gia">Giardini</button></div>
-    <div class="map-leg"><span><i class="lg-dot"></i>obra ou pavilhão</span><span><i class="lg-ring"></i>posição aproximada</span></div>
+    <div class="map-ctl" id="map-ctl"><button type="button" data-go="all" class="on">Arsenale e Giardini</button><button type="button" data-go="ars">Arsenale</button><button type="button" data-go="gia">Giardini</button><span class="sep"></span><button type="button" data-rot="-45" aria-label="Girar para a esquerda">&#8634;</button><button type="button" data-rot="45" aria-label="Girar para a direita">&#8635;</button><button type="button" id="spin" aria-pressed="false">Girar sozinho</button></div>
+    <div class="map-leg"><span><i class="lg-dot"></i>obra ou pavilhão</span><span><i class="lg-ring"></i>posição aproximada</span><span>girar: botão direito e arrastar, ou dois dedos</span></div>
     <div class="map-off" id="map-off" hidden>O mapa precisa de internet para carregar. As fichas abaixo funcionam sem ele.</div>
   </div>
 </section>
@@ -505,8 +506,16 @@ if (location.hash) fromHash();
   function select(id) { sel = id; if (map.getLayer('halo')) map.setFilter('halo', ['==', ['get', 'id'], id || '']); }
   window.mapRows = (rows) => { lastRows = rows; const s = map.getSource('obras'); if (s) s.setData(feats(rows)); };
   window.mapGo = (id) => { const o = byId[id]; if (!o) return; select(id); map.flyTo({ center: [o.lon, o.lat], zoom: 18.2, pitch: 60, bearing: map.getBearing(), duration: reduce ? 0 : 2200, essential: true }); };
-  document.querySelectorAll('#map-ctl button').forEach(b => b.onclick = () => {
-    document.querySelectorAll('#map-ctl button').forEach(x => x.classList.toggle('on', x === b));
+  let spinning = false;
+  const spinStep = () => { if (!spinning) return; map.easeTo({ bearing: map.getBearing() + 30, duration: 6000, easing: t => t }); };
+  map.on('moveend', () => { if (spinning) spinStep(); });
+  const stopSpin = () => { if (!spinning) return; spinning = false; $('spin').setAttribute('aria-pressed', 'false'); map.stop(); };
+  ['mousedown', 'touchstart', 'wheel'].forEach(ev => map.getCanvas().addEventListener(ev, stopSpin, { passive: true }));
+  $('spin').onclick = () => { spinning = !spinning; $('spin').setAttribute('aria-pressed', String(spinning)); if (spinning) spinStep(); else map.stop(); };
+  document.querySelectorAll('#map-ctl [data-rot]').forEach(b => b.onclick = () => { stopSpin(); map.easeTo({ bearing: map.getBearing() + Number(b.dataset.rot), duration: reduce ? 0 : 700 }); });
+  document.querySelectorAll('#map-ctl [data-go]').forEach(b => b.onclick = () => {
+    stopSpin();
+    document.querySelectorAll('#map-ctl [data-go]').forEach(x => x.classList.toggle('on', x === b));
     select(''); map.flyTo({ ...V[b.dataset.go], duration: reduce ? 0 : 2000, essential: true });
   });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
