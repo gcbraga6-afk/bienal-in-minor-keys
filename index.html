@@ -475,7 +475,8 @@ function bootMap() {
   catch (e) { fail('Este navegador não conseguiu abrir o mapa 3D (precisa de WebGL ativado). As fichas abaixo funcionam normalmente.'); return; }
   let ok = false;
   map.on('load', () => { ok = true; off.hidden = true; });
-  setTimeout(() => { if (!ok && !map.loaded()) fail('O mapa está demorando para carregar. Confira a conexão e tente de novo.'); }, 20000);
+  let waited = 0;
+  const tick = setInterval(() => { if (ok) return clearInterval(tick); if (document.visibilityState === 'visible') waited += 1; if (waited >= 20) { clearInterval(tick); fail('O mapa está demorando para carregar. Confira a conexão e tente de novo.'); } }, 1000);
   window.bienalMap = map;
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
   const feats = (rows) => { const on = new Set(rows.map(o => o.id)); return { type: 'FeatureCollection', features: OBRAS.map(o => ({ type: 'Feature', id: OBRAS.indexOf(o), geometry: { type: 'Point', coordinates: [o.lon, o.lat] }, properties: { id: o.id, on: on.has(o.id) ? 1 : 0, aprox: o.aprox ? 1 : 0, fav: o.destaque === 'sim' ? 1 : 0 } })) }; };
