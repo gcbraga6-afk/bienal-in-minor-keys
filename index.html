@@ -445,9 +445,10 @@ if (location.hash) fromHash();
 
 
 // map
-(function () {
+function bootMap() {
   const off = $('map-off');
-  if (!window.maplibregl) { off.hidden = false; return; }
+  const fail = (msg) => { off.hidden = false; off.innerHTML = ''; off.append(el('div', null, msg)); const b = el('button', null, 'Tentar de novo'); b.type = 'button'; b.style.cssText = 'margin-top:12px;font:inherit;font-size:14px;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer'; b.onclick = () => location.reload(); const w = el('div'); w.append(off.firstChild, b); off.append(w); };
+  if (!window.maplibregl) { fail('Não consegui carregar a biblioteca do mapa. Pode ser a conexão ou um bloqueador de conteúdo.'); return; }
   const V = { all: { center: [12.3552, 45.4313], zoom: 15.35, pitch: 50, bearing: -24 }, ars: { center: [12.3537, 45.4341], zoom: 16.7, pitch: 58, bearing: -16 }, gia: { center: [12.3584, 45.4288], zoom: 16.9, pitch: 58, bearing: -32 } };
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
   const cols = () => ({ bg: css('--bg'), fg: css('--fg'), line: css('--line'), acc: css('--accent'), soft: css('--accent-soft'), muted: css('--muted'), panel: css('--panel') });
@@ -468,7 +469,10 @@ if (location.hash) fromHash();
   };
   let map;
   try { map = new maplibregl.Map({ container: 'map', style, ...V.all, maxPitch: 70, cooperativeGestures: true, attributionControl: { compact: true, customAttribution: 'Posições: OpenStreetMap e mapa da Bienal' } }); }
-  catch (e) { off.hidden = false; return; }
+  catch (e) { fail('Este navegador não conseguiu abrir o mapa 3D (precisa de WebGL ativado). As fichas abaixo funcionam normalmente.'); return; }
+  let ok = false;
+  map.on('load', () => { ok = true; off.hidden = true; });
+  setTimeout(() => { if (!ok && !map.loaded()) fail('O mapa está demorando para carregar. Confira a conexão e tente de novo.'); }, 20000);
   window.bienalMap = map;
   map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
   const feats = (rows) => { const on = new Set(rows.map(o => o.id)); return { type: 'FeatureCollection', features: OBRAS.map(o => ({ type: 'Feature', id: OBRAS.indexOf(o), geometry: { type: 'Point', coordinates: [o.lon, o.lat] }, properties: { id: o.id, on: on.has(o.id) ? 1 : 0, aprox: o.aprox ? 1 : 0, fav: o.destaque === 'sim' ? 1 : 0 } })) }; };
@@ -525,8 +529,14 @@ if (location.hash) fromHash();
     P('pts', 'circle-color', ['case', ['==', ['get', 'on'], 0], c.line, ['==', ['get', 'aprox'], 1], c.bg, c.acc]);
     P('pts', 'circle-stroke-color', ['case', ['==', ['get', 'on'], 0], c.line, ['==', ['get', 'aprox'], 1], c.acc, c.bg]);
   });
-  map.on('error', (e) => { if (e && e.error && /Failed to fetch|NetworkError/.test(String(e.error.message)) && !map.loaded()) off.hidden = false; });
-})();
+  map.on('error', (e) => { console.warn('mapa:', e && e.error && e.error.message); });
+}
+if (window.maplibregl) bootMap();
+else {
+  const sc = document.createElement('script'); sc.src = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js';
+  sc.onload = bootMap; sc.onerror = bootMap; document.head.append(sc);
+  const ln = document.createElement('link'); ln.rel = 'stylesheet'; ln.href = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css'; document.head.append(ln);
+}
 
 // reveal
 if (!reduce && 'IntersectionObserver' in window) {
